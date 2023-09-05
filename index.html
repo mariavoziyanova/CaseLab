@@ -1,0 +1,319 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+    <header>
+        <div>TodoApp</div>
+        <form class="addTaskForm">
+            <input type="text" placeholder="Task..." class="taskDescription">
+            <input type="submit" value="Add task" class="taskAdd">
+        </form>
+    </header>
+
+    <main class="tasks">
+        <div class="title">Tasks</div>
+        <div class="tasklist"></div>
+    </main>
+
+    <footer class="buttonGroups">
+        <div class="parityButtonGroup">
+            <button class="odd">Mark odd tasks</button>
+            <button class="even">Mark even tasks</button>
+        </div>
+        <div class="removeEdgeButtonGroup">
+            <button class="first">Remove first task</button>
+            <button class="last">Remove last task</button>
+        </div>
+    </footer>
+
+    <script>
+        function filterAndSortLocalStorageKeys() {
+            return Object.keys(localStorage)
+            .filter(key => key.match(/^\d+$/) || key.match(/^done\d+$/) )
+            .sort( (prevKey, nextKey) => {
+                if (prevKey.match(/^\d+$/) && nextKey.match(/^\d+$/) ) {
+                    return Number(prevKey) - Number(nextKey);
+                } else if (prevKey.match(/^done\d+$/) && nextKey.match(/^\d+$/) ) {
+                    return 1;
+                } else if (prevKey.match(/^\d+$/) && nextKey.match(/^done\d+$/) ) {
+                    return -1;
+                } else {
+                    let prevIndex = +prevKey.match(/\d+/);
+                    let nextIndex = +nextKey.match(/\d+/);
+                    return prevIndex - nextIndex;
+                }
+            });
+        }
+
+        function getMaxIndexInLocalStorage() {
+            let keys = filterAndSortLocalStorageKeys();
+            let maxIndex = 0;
+            for (let key of keys) {
+                let curr = +key.match(/\d+/);
+                if (curr > maxIndex) {
+                    maxIndex = curr;
+                }
+            }
+            return maxIndex;
+        }
+
+        function filterDoneTasksLocalStorageKeys() {
+            return Object.keys(localStorage)
+            .filter(key => key.match(/^done\d+$/) );
+        }
+
+        function filterNotDoneTasksLocalStorageKeys() {
+            return Object.keys(localStorage)
+            .filter(key => key.match(/^\d+$/) );
+        }
+
+        function addTask(task, taskId) {
+            const tasklist = document.querySelector('.tasklist');
+            
+            for (let localTask of tasklist.children) {
+                if (localTask.textContent === task) {
+                    alert('Such task already exists!');
+                    return;
+                }
+            }
+
+            const taskDiv = document.createElement('div'); // create div which will contain task description and two buttons
+            taskDiv.classList.add('task');
+
+            if (!taskId) {
+                // if we are not passing taskId, we are definitely not working with localStorage
+                // thus we have to add this task to localStorage and increment counter
+                taskDiv.setAttribute('data-id', addTask.counter);
+                localStorage.setItem(addTask.counter, task);
+                ++addTask.counter;
+            } else {
+                // passing taskId implies that we are working with localStorage
+                // thus that task is already present in localStorage
+                taskDiv.setAttribute('data-id', taskId);
+            }
+
+            const taskDescriptionDiv = document.createElement('div'); // create sub-div with task description
+            taskDescriptionDiv.classList.add('taskDescriptionDiv');
+            taskDescriptionDiv.textContent = task;
+
+            if (taskId && taskId.includes('done') ) {
+                taskDescriptionDiv.style.textDecoration = 'line-through';
+            }
+            taskDiv.append(taskDescriptionDiv);
+            
+            const completeButton = document.createElement('button'); // create 'complete' button
+            completeButton.classList.add('completeButton');
+
+            if (taskId) {
+                // if taskId is passed, we are dealing with localStorage
+                // which can contain both done and not done tasks
+                // we need to check both variants
+                if (!taskId.includes('done') ) {
+                    completeButton.textContent = '✓';
+                } else {
+                    completeButton.textContent = '←';
+                }
+            } else {
+                // if taskId isn't passed we are handling manual task input
+                // so it is definitely not done yet
+                completeButton.textContent = '✓';
+            }
+
+            completeButton.addEventListener('click', evt => {
+                let id = taskDiv.dataset.id;
+                let value = localStorage.getItem(id);
+
+                if (evt.target.textContent === '✓') {
+                    tasklist.append(taskDiv);
+                    evt.target.textContent = '←';
+                    
+                    const tasksDoneCount = document.querySelectorAll('.task[data-id^=done]').length;
+                    
+                    localStorage.removeItem(id);
+                    taskDiv.setAttribute('data-id', `done${tasksDoneCount}`);
+                    localStorage.setItem(`done${tasksDoneCount}`, value);
+
+                    let newId = 0;
+                    const notDoneTasksDOM = document.querySelectorAll('.task[data-id]:not([data-id^="done"])');
+                    const notDoneTaskKeys = filterNotDoneTasksLocalStorageKeys();
+
+                    console.error(notDoneTasksDOM);
+                    console.error(notDoneTaskKeys);
+
+                    for (let key of notDoneTaskKeys) {
+                        localStorage.removeItem(key);
+                    }
+
+                    for (let notDoneTaskDOM of notDoneTasksDOM) {
+                        let value = notDoneTaskDOM.querySelector('.taskDescriptionDiv').textContent;
+                        notDoneTaskDOM.setAttribute('data-id', newId);
+                        localStorage.setItem(newId, value);
+                        ++newId;
+                    }
+                    taskDescriptionDiv.style.textDecoration = 'line-through';
+                } else {
+                    const tasksNotDone = Array.from(document.querySelectorAll('.task[data-id]:not([data-id^="done"])') );
+                    const tasksNotDoneCount = tasksNotDone.length;
+
+                    if (tasksNotDone) {
+                        tasksNotDone.at(-1).after(taskDiv);
+                    } else {
+                        tasklist.prepend(taskDiv);
+                    }
+                    evt.target.textContent = '←';
+
+                    localStorage.removeItem(id);
+                    taskDiv.setAttribute('data-id', tasksNotDoneCount);
+                    localStorage.setItem(tasksNotDoneCount, value);
+
+                    let newId = 0;
+                    const doneTasksDOM = document.querySelectorAll('.task[data-id^=done]');
+                    const doneTaskKeys = filterDoneTasksLocalStorageKeys();
+
+                    console.error(doneTasksDOM);
+                    console.error(doneTaskKeys);
+
+                    for (let key of doneTaskKeys) {
+                        localStorage.removeItem(key);
+                    }
+
+                    for (let doneTaskDOM of doneTasksDOM) {
+                        let value = doneTaskDOM.querySelector('.taskDescriptionDiv').textContent;
+                        doneTaskDOM.setAttribute('data-id', `done${newId}`);
+                        localStorage.setItem(`done${newId}`, value);
+                        ++newId;
+                    }
+                    taskDescriptionDiv.style.textDecoration = '';
+                }
+            });
+            
+            const deleteButton = document.createElement('button'); // create 'delete' button
+            deleteButton.classList.add('deleteButton');
+            deleteButton.textContent = 'X';
+            
+            deleteButton.addEventListener('click', evt => {
+                let id = taskDiv.dataset.id;
+
+                localStorage.removeItem(id);
+                taskDiv.remove();
+
+                if (!id.includes('done') ) {
+                    let newId = 0;
+                    const notDoneTasksDOM = document.querySelectorAll('.task[data-id]:not([data-id^="done"])');
+                    const notDoneTaskKeys = filterNotDoneTasksLocalStorageKeys();
+
+                    console.error(notDoneTasksDOM);
+                    console.error(notDoneTaskKeys);
+
+                    for (let key of notDoneTaskKeys) {
+                        localStorage.removeItem(key);
+                    }
+
+                    for (let notDoneTaskDOM of notDoneTasksDOM) {
+                        let value = notDoneTaskDOM.querySelector('.taskDescriptionDiv').textContent;
+                        notDoneTaskDOM.setAttribute('data-id', newId);
+                        localStorage.setItem(newId, value);
+                        ++newId;
+                    }
+                    --addTask.counter;
+                } else {
+                    let newId = 0;
+                    const doneTasksDOM = document.querySelectorAll('.task[data-id^=done]');
+                    const doneTaskKeys = filterDoneTasksLocalStorageKeys();
+
+                    for (let key of doneTaskKeys) {
+                        localStorage.removeItem(key);
+                    }
+
+                    for (let doneTaskDOM of doneTasksDOM) {
+                        let value = doneTaskDOM.querySelector('.taskDescriptionDiv').textContent;
+                        doneTaskDOM.setAttribute('data-id', `done${newId}`);
+                        localStorage.setItem(`done${newId}`, value);
+                        ++newId;
+                    }
+                }
+            });
+            
+            taskDiv.append(completeButton);
+            taskDiv.append(deleteButton);
+
+            tasklist.append(taskDiv);
+        }
+
+        addTask.counter = 0;
+
+        document.addEventListener('DOMContentLoaded', evt => {
+            let allKeys = filterAndSortLocalStorageKeys();
+            for (let key of allKeys) {
+                console.warn('appending existing value from local storage');
+                console.warn(key, localStorage.getItem(key) );
+                addTask(localStorage.getItem(key), key);
+            }
+
+            if (allKeys.length > 0) {
+                addTask.counter = getMaxIndexInLocalStorage() + 1;
+            }
+            console.error(addTask.counter);
+
+            const form = document.querySelector('.addTaskForm');
+            form.addEventListener('submit', evt => {
+                evt.preventDefault();
+                console.log(evt);
+
+                const input = evt.target.elements[0].value;
+                console.log(input);
+
+                if (input) {
+                    addTask(input);
+                    evt.target.elements[0].value = '';
+                } else {
+                    alert('Cannot add task with no description!');
+                }
+            });
+
+            const buttonEven = document.querySelector('button.even');
+            buttonEven.addEventListener('click', evt => {
+                let i = 0;
+                let tasklist = Array.from(document.querySelector('.tasklist').children);
+                for (let task of tasklist) {
+                    if ( (i + 1) % 2 === 0) {
+                        task.style.backgroundColor = '#afa9e4';
+                    }
+                    ++i;
+                }
+            });
+
+            const buttonOdd = document.querySelector('button.odd');
+            buttonOdd.addEventListener('click', evt => {
+                let i = 0;
+                let tasklist = Array.from(document.querySelector('.tasklist').children);
+                for (let task of tasklist) {
+                    if ( (i + 1) % 2 === 1) {
+                        task.style.backgroundColor = '#8cc7a1';
+                    }
+                    ++i;
+                }
+            });
+
+            const buttonRemoveFirst = document.querySelector('button.first');
+            buttonRemoveFirst.addEventListener('click', evt => {
+                const firstChild = document.querySelector('.tasklist > div');
+                localStorage.removeItem(firstChild.dataset.id);
+                firstChild.remove();
+            });
+
+            const buttonRemoveLast = document.querySelector('button.last');
+            buttonRemoveLast.addEventListener('click', evt => {
+                const lastChild = Array.from(document.querySelectorAll('.tasklist > div')).at(-1);
+                localStorage.removeItem(lastChild.dataset.id);
+                lastChild.remove();
+            });
+        });
+
+    </script>
+</body>
+</html>
